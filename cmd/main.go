@@ -20,8 +20,11 @@ func main() {
 	mux.HandleFunc("/weather/{city}", transport.CityWeatherHandler)
 
 	server := &http.Server{
-		Addr:    cfg.Port,
-		Handler: mux,
+		Addr:         cfg.Port,
+		Handler:      mux,
+		ReadTimeout:  cfg.ReadTimeout,
+		WriteTimeout: cfg.WriteTimeout,
+		IdleTimeout:  cfg.IdleTimeout,
 	}
 
 	go func() {
