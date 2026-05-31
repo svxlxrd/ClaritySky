@@ -1,6 +1,7 @@
 package main
 
 import (
+	"claritysky/internal/config"
 	"claritysky/internal/transport"
 	"context"
 	"log"
@@ -12,17 +13,19 @@ import (
 )
 
 func main() {
+	cfg := config.Load()
+
 	mux := http.NewServeMux()
 
 	mux.HandleFunc("/weather/{city}", transport.CityWeatherHandler)
 
 	server := &http.Server{
-		Addr:    ":8080",
+		Addr:    cfg.Port,
 		Handler: mux,
 	}
 
 	go func() {
-		log.Print("server started on port :8080")
+		log.Printf("server started on port: %s", cfg.Port)
 		if err := server.ListenAndServe(); err != nil &&
 			err != http.ErrServerClosed {
 			log.Fatal(err)
@@ -34,12 +37,12 @@ func main() {
 
 	<-stop
 
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
 	log.Print("shutting down...")
 	if err := server.Shutdown(ctx); err != nil {
-		log.Printf("shutdown error: %w", err)
+		log.Printf("shutdown error: %v", err)
 	}
 
 	log.Print("server stopped")
