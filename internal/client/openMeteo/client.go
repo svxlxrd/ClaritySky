@@ -8,21 +8,6 @@ import (
 	"time"
 )
 
-type geoResponse struct {
-	Results []struct {
-		Latitude  float64 `json:"latitude"`
-		Longitude float64 `json:"longitude"`
-	} `json:"results"`
-}
-
-type weatherResponse struct {
-	Current struct {
-		Temperature float64 `json:"temperature_2m"`
-		WindSpeed   float64 `json:"wind_speed_10m"`
-		Time        string  `json:"time"`
-	} `json:"current"`
-}
-
 func getCoordinates(cityName string) (float64, float64, error) {
 	url := fmt.Sprintf(
 		"https://geocoding-api.open-meteo.com/v1/search?name=%s&country_code=RU&limit=1",
@@ -39,7 +24,7 @@ func getCoordinates(cityName string) (float64, float64, error) {
 		return 0, 0, err
 	}
 
-	var city geoResponse
+	var city GeoResponse
 	if err := json.NewDecoder(resp.Body).Decode(&city); err != nil {
 		return 0, 0, err
 	}
@@ -73,7 +58,7 @@ func GetWeather(cityName string) (domain.Weather, error) {
 		return domain.Weather{}, err
 	}
 
-	var weather weatherResponse
+	var weather WeatherResponse
 	if err := json.NewDecoder(resp.Body).Decode(&weather); err != nil {
 		return domain.Weather{}, err
 	}
