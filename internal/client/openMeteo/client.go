@@ -1,27 +1,37 @@
-package openMeteo
+package openmeteo
 
 import (
 	"claritysky/internal/domain"
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
 	"time"
 )
 
-func getCoordinates(cityName string) (float64, float64, error) {
+var client = &http.Client{
+	Timeout: 5 * time.Second,
+}
+
+func getCoordinates(ctx context.Context, cityName string) (float64, float64, error) {
 	url := fmt.Sprintf(
-		"https://geocoding-api.open-meteo.com/v1/search?name=%s&country_code=RU&limit=1",
+		"https://geocoding-api.open-meteo.com/v1/search?name=%s&limit=1",
 		cityName,
 	)
 
-	resp, err := http.Get(url)
+	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
+	if err != nil {
+		return 0, 0, err
+	}
+
+	resp, err := client.Do(req)
 	if err != nil {
 		return 0, 0, err
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return 0, 0, err
+		return 0, 0, fmt.Errorf("geocoding API return status: %d", resp.StatusCode)
 	}
 
 	var city GeoResponse
@@ -36,8 +46,12 @@ func getCoordinates(cityName string) (float64, float64, error) {
 	return city.Results[0].Latitude, city.Results[0].Longitude, nil
 }
 
-func GetWeather(cityName string) (domain.Weather, error) {
-	latitude, longitude, err := getCoordinates(cityName)
+func GetWeather(ctx context.Context, cityName string) (domain.Weather, error) {
+	if cityName == "" {
+		return domain.Weather{}, fmt.Errorf("city name is empty")
+	}
+
+	latitude, longitude, err := getCoordinates(ctx, cityName)
 	if err != nil {
 		return domain.Weather{}, err
 	}
@@ -48,14 +62,19 @@ func GetWeather(cityName string) (domain.Weather, error) {
 		longitude,
 	)
 
-	resp, err := http.Get(url)
+	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
+	if err != nil {
+		return domain.Weather{}, err
+	}
+
+	resp, err := client.Do(req)
 	if err != nil {
 		return domain.Weather{}, err
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return domain.Weather{}, err
+		return domain.Weather{}, fmt.Errorf("weather API return status: %d", resp.StatusCode)
 	}
 
 	var weather WeatherResponse

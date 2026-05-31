@@ -1,4 +1,4 @@
-package openMeteo
+package openmeteo
 
 type GeoResponse struct {
 	Results []struct {
