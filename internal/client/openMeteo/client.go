@@ -13,83 +13,97 @@ var client = &http.Client{
 	Timeout: 5 * time.Second,
 }
 
-func getCoordinates(ctx context.Context, cityName string) (float64, float64, error) {
+func getCoordinates(ctx context.Context, cityName string) (GeoResponse, error) {
 	url := fmt.Sprintf(
-		"https://geocoding-api.open-meteo.com/v1/search?name=%s&limit=1",
+		"https://geocoding-api.open-meteo.com/v1/search?name=%s&count=5",
 		cityName,
 	)
 
 	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
 	if err != nil {
-		return 0, 0, err
+		return GeoResponse{}, err
 	}
 
 	resp, err := client.Do(req)
 	if err != nil {
-		return 0, 0, err
+		return GeoResponse{}, err
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return 0, 0, fmt.Errorf("geocoding API return status: %d", resp.StatusCode)
+		return GeoResponse{}, fmt.Errorf("geocoding API return status: %d", resp.StatusCode)
 	}
 
-	var city GeoResponse
-	if err := json.NewDecoder(resp.Body).Decode(&city); err != nil {
-		return 0, 0, err
+	var cities GeoResponse
+	if err := json.NewDecoder(resp.Body).Decode(&cities); err != nil {
+		return GeoResponse{}, err
 	}
 
-	if len(city.Results) == 0 {
-		return 0, 0, fmt.Errorf("city not found")
+	if len(cities.Results) == 0 {
+		return GeoResponse{}, fmt.Errorf("city not found")
 	}
 
-	return city.Results[0].Latitude, city.Results[0].Longitude, nil
+	return cities, nil
 }
 
-func GetWeather(ctx context.Context, cityName string) (domain.Weather, error) {
+func GetWeather(ctx context.Context, cityName string) ([]domain.Weather, error) {
 	if cityName == "" {
-		return domain.Weather{}, fmt.Errorf("city name is empty")
+		return nil, fmt.Errorf("city name is empty")
 	}
 
-	latitude, longitude, err := getCoordinates(ctx, cityName)
+	cities, err := getCoordinates(ctx, cityName)
 	if err != nil {
-		return domain.Weather{}, err
+		return nil, err
 	}
 
-	url := fmt.Sprintf(
-		"https://api.open-meteo.com/v1/forecast?latitude=%f&longitude=%f&current=temperature_2m,wind_speed_10m",
-		latitude,
-		longitude,
-	)
+	var results []domain.Weather
 
-	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
-	if err != nil {
-		return domain.Weather{}, err
+	for _, city := range cities.Results {
+		url := fmt.Sprintf(
+		"https://api.open-meteo.com/v1/forecast?latitude=%f&longitude=%f&current=temperature_2m",
+		city.Latitude,
+		city.Longitude,
+		)
+
+		req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
+		if err != nil {
+			continue
+		}
+
+		resp, err := client.Do(req)
+		if err != nil {
+			continue
+		}
+
+		if resp.StatusCode != http.StatusOK {
+			resp.Body.Close()
+			continue
+		}
+
+		var weather WeatherResponse
+		if err := json.NewDecoder(resp.Body).Decode(&weather); err != nil {
+			resp.Body.Close()
+			continue
+		}
+
+		resp.Body.Close()
+
+
+		updatedAt, err := time.Parse("2006-01-02T15:04", weather.Current.Time)
+		if err != nil {
+			continue
+		}
+
+
+		
+		results = append(results, domain.Weather{
+			City: city.Name,
+			Region: city.Region,
+			Country: city.Country,
+			Temperature: weather.Current.Temperature,
+			UpdatedAt: updatedAt,
+		})
 	}
 
-	resp, err := client.Do(req)
-	if err != nil {
-		return domain.Weather{}, err
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		return domain.Weather{}, fmt.Errorf("weather API return status: %d", resp.StatusCode)
-	}
-
-	var weather WeatherResponse
-	if err := json.NewDecoder(resp.Body).Decode(&weather); err != nil {
-		return domain.Weather{}, err
-	}
-
-	updatedAt, err := time.Parse("2006-01-02T15:04", weather.Current.Time)
-	if err != nil {
-		return domain.Weather{}, err
-	}
-
-	return domain.Weather{
-		Temperature: weather.Current.Temperature,
-		WindSpeed:   weather.Current.WindSpeed,
-		UpdatedAt:   updatedAt,
-	}, nil
+	return results, nil
 }
