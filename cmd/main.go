@@ -1,7 +1,9 @@
 package main
 
 import (
+	"claritysky/internal/client/openmeteo"
 	"claritysky/internal/config"
+	"claritysky/internal/pkg/httpclient"
 	"claritysky/internal/transport"
 	"context"
 	"log"
@@ -15,9 +17,13 @@ import (
 func main() {
 	cfg := config.Load()
 
+	retryHTTPClient := httpclient.NewClient()
+	weatherProvider := openmeteo.NewProvider(retryHTTPClient)
+	weatherHandler := transport.NewWeatherHandler(weatherProvider)
+
 	mux := http.NewServeMux()
 
-	mux.HandleFunc("/weather/{city}", transport.CityWeatherHandler)
+	mux.HandleFunc("/weather/{city}", weatherHandler.CityWeatherHandler)
 
 	server := &http.Server{
 		Addr:         cfg.Port,

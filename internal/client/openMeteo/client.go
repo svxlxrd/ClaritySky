@@ -9,11 +9,24 @@ import (
 	"time"
 )
 
-var client = &http.Client{
-	Timeout: 5 * time.Second,
+type HTTPClient interface {
+	Do(ctx context.Context, req *http.Request) (*http.Response, error)
 }
 
-func getCoordinates(ctx context.Context, cityName string) (GeoResponse, error) {
+type Provider struct {
+	httpClient HTTPClient
+}
+
+func NewProvider(hc HTTPClient) *Provider {
+	return &Provider{
+		httpClient: hc,
+	}
+}
+
+func (p *Provider) getCoordinates(
+	ctx context.Context,
+	cityName string,
+) (GeoResponse, error) {
 	url := fmt.Sprintf(
 		"https://geocoding-api.open-meteo.com/v1/search?name=%s&count=5",
 		cityName,
@@ -24,8 +37,11 @@ func getCoordinates(ctx context.Context, cityName string) (GeoResponse, error) {
 		return GeoResponse{}, err
 	}
 
-	resp, err := client.Do(req)
+	resp, err := p.httpClient.Do(ctx, req)
 	if err != nil {
+		if resp != nil {
+			resp.Body.Close()
+		}
 		return GeoResponse{}, err
 	}
 	defer resp.Body.Close()
@@ -46,12 +62,15 @@ func getCoordinates(ctx context.Context, cityName string) (GeoResponse, error) {
 	return cities, nil
 }
 
-func GetWeather(ctx context.Context, cityName string) ([]domain.Weather, error) {
+func (p *Provider) GetWeather(
+	ctx context.Context,
+	cityName string,
+) ([]domain.Weather, error) {
 	if cityName == "" {
 		return nil, fmt.Errorf("city name is empty")
 	}
 
-	cities, err := getCoordinates(ctx, cityName)
+	cities, err := p.getCoordinates(ctx, cityName)
 	if err != nil {
 		return nil, err
 	}
@@ -60,9 +79,9 @@ func GetWeather(ctx context.Context, cityName string) ([]domain.Weather, error) 
 
 	for _, city := range cities.Results {
 		url := fmt.Sprintf(
-		"https://api.open-meteo.com/v1/forecast?latitude=%f&longitude=%f&current=temperature_2m",
-		city.Latitude,
-		city.Longitude,
+			"https://api.open-meteo.com/v1/forecast?latitude=%f&longitude=%f&current=temperature_2m",
+			city.Latitude,
+			city.Longitude,
 		)
 
 		req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
@@ -70,8 +89,11 @@ func GetWeather(ctx context.Context, cityName string) ([]domain.Weather, error) 
 			continue
 		}
 
-		resp, err := client.Do(req)
+		resp, err := p.httpClient.Do(ctx, req)
 		if err != nil {
+			if resp != nil {
+				resp.Body.Close()
+			}
 			continue
 		}
 
@@ -85,23 +107,19 @@ func GetWeather(ctx context.Context, cityName string) ([]domain.Weather, error) 
 			resp.Body.Close()
 			continue
 		}
-
 		resp.Body.Close()
-
 
 		updatedAt, err := time.Parse("2006-01-02T15:04", weather.Current.Time)
 		if err != nil {
 			continue
 		}
 
-
-		
 		results = append(results, domain.Weather{
-			City: city.Name,
-			Region: city.Region,
-			Country: city.Country,
+			City:        city.Name,
+			Region:      city.Region,
+			Country:     city.Country,
 			Temperature: weather.Current.Temperature,
-			UpdatedAt: updatedAt,
+			UpdatedAt:   updatedAt,
 		})
 	}
 
