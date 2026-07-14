@@ -1,7 +1,7 @@
 package transport
 
 import (
-	"claritysky/internal/domain"
+	"github.com/svxlxrd/weather-rest-api/internal/domain"
 	"context"
 	"encoding/json"
 	"net/http"

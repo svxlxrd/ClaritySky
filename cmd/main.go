@@ -1,10 +1,10 @@
 package main
 
 import (
-	"claritysky/internal/client/openmeteo"
-	"claritysky/internal/config"
-	"claritysky/internal/pkg/httpclient"
-	"claritysky/internal/transport"
+	"github.com/svxlxrd/weather-rest-api/internal/client/openmeteo"
+	"github.com/svxlxrd/weather-rest-api/internal/config"
+	"github.com/svxlxrd/weather-rest-api/internal/pkg/httpclient"
+	"github.com/svxlxrd/weather-rest-api/internal/transport"
 	"context"
 	"log"
 	"net/http"

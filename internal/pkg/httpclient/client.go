@@ -1,7 +1,7 @@
 package httpclient
 
 import (
-	"claritysky/internal/pkg/retry"
+	"github.com/svxlxrd/weather-rest-api/internal/pkg/retry"
 	"context"
 	"fmt"
 	"net/http"
